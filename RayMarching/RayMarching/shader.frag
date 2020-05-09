@@ -2,11 +2,11 @@ uniform vec2     iResolution;           // viewport resolution (in pixels)
 uniform float     iTime;           // viewport resolution (in pixels)
 uniform vec3 camPos;
 uniform vec2 camDir;
-
+uniform sampler2D tex;
 
 #define PI 3.141693
 #define INF 1000
-#define MAX_DIST 10
+#define MAX_DIST 50
 
 // Geometry
 
@@ -31,6 +31,12 @@ vec3 rotate(vec3 v, vec2 ang){
 
 float _mod(float x, float y) {
 	return x - y * trunc(x/y);
+}
+
+// Polynomial smooth minimum by iq
+float smin(float a, float b, float k) {
+  float h = clamp(0.5 + 0.5*(a-b)/k, 0.0, 1.0);
+  return mix(a, b, h) - k*h*(1.0-h);
 }
 
 // Objects
@@ -59,12 +65,15 @@ struct Scene {
 	float threshold;
 	float time;
 
+	// Info
+	int steps;
+
 	// Object
 	vec3 light;
 
     Cam cam;
 	Sphere spheres[5];
-    Light lights[1];
+    //Light lights[1];
 
 	float distSphere(vec3 pos, int i);
 	float dist(vec3 pos);
@@ -75,9 +84,11 @@ float Scene::distSphere(vec3 pos, int i) {
 	vec3 p1 = pos;
 	vec3 p2 = spheres[i].pos;
 
-	p1.x = p1.x + cos(p1.y*50+ time*5) * 0.02;
-	p1.z =  p1.z + 1*sin(p1.x*50 + time*5)* 0.02;
-	p1.y = p1.y + 1*sin(p1.z*50 + time*5) * 0.02;
+	float k = 0.02 * 0.5 * 0.5*0;
+	float per = 10;
+	p1.x = p1.x + cos(p1.y * per + time*5) * k;
+	p1.z = p1.z + sin(p1.x * per + time*5) * k;
+	p1.y = p1.y + sin(p1.z * per + time*5) * k;
 	
 	//p1.x = sin(p1.x + 0.05*sin(p1.z * 30) );
 	//p1.y = sin(p1.y );
@@ -94,14 +105,24 @@ float Scene::dist(vec3 pos){
 	
 	vec3 p1 = pos;
 
-	float dPlane = pos.z + 1;
-	//float dPlane1 = pos.z - 1;
+	float dPlane = pos.z+ (sin(pos.x *  + time)*0.01
+	+ sin(pos.x * 5 + 5*time*1.11)*0.01/2
+	+ sin(pos.x * 10 + 5*time*2.11)*0.01/4
+	+ sin(pos.y *  + time*0.83)*0.01
+	+ sin(pos.y * 5 + 5*time*1.23)*0.01/2
+	+ sin(pos.y * 10 + 5*time*2.23)*0.01)
+	*0.5
+	;
+	
+	float dPlane1 = pos.z - 1; 
+
+	
 	float d0 = distSphere(pos, 0);
-	//float d1 = distSphere(pos, 1);
+	float d1 = distSphere(pos, 1);
 	//float d2 = distSphere(pos, 2);
 	//float d3 = distSphere(pos, 3);
 
-	float d = d0;
+	float d = smin(max(smin(d0, dPlane, 1.34), dPlane1), d1, 1.1);
 
 	return d;
 }
@@ -133,17 +154,18 @@ vec3 collision(Scene scene, vec3 pos, vec3 dir){
 			minDist = d;
 		
 		if (d  < scene.threshold){
-			//return pos;
+			return pos;
 		}
 
 		pos += dir * d;
 	}
 
-	return pos;
+	return vec3(INF, INF, INF);
 }
 
 vec3 rayMarch (Scene scene, vec3 pos, vec3 dir) {
-	vec3 col = {0.5, 0.5, 0.5}; 
+	vec3 col = {0.5, 0.5, 0.5};
+	//col *= 0;
 
 	dir = normalize(dir);
 
@@ -160,32 +182,24 @@ vec3 rayMarch (Scene scene, vec3 pos, vec3 dir) {
 			break;
 		}
 		pos += dir * d;
-		k *= 1.05;
+		scene.steps += 1;
+		k *= 0.95;
 	}
 
-	
-	//col -= 0.15 * vec3(1, 1, 1) / minDist;
-	
-	
 
 	if(minDist < scene.threshold){
-		if(1 || length(collision(scene, pos, scene.light)) > 2){
-			col *= multiply(scene.normal(pos), scene.light);
-			col.x = max(0, col.x);
-			col.y = max(0, col.x);
-			col.z = max(0, col.x);
-		} else {
-			col = vec3(0., 0., 0.);
-		}
-
-
-
-		col += vec3(1, 1, 1) * 0.1;
+		col *= multiply(scene.normal(pos), scene.light);
+		col.x = max(0, col.x);
+		col.y = max(0, col.x);
+		col.z = max(0, col.x);
+	}
+	if(minDist > scene.threshold || distance(scene.cam.pos, pos) > MAX_DIST){
+		float a = (atan(dir.x, dir.y) + PI) / PI / 2;
+		float xy = sqrt(dir.x*dir.x + dir.y*dir.y);
+		float b = atan(xy, dir.z)/ PI;
+		col = texture2D(tex, vec2(a, b)).rgb;
 	}
 	
-	col += rotate(vec3(0, 0, 2), vec2(pos.x, pos.y)) / k * 1;
-	
-	//col *= 5.5 / distance(camPos, pos);
 
 	return col;
 }
@@ -196,46 +210,45 @@ void main() {
 
 	// Scene
 	Scene scene;
-	scene.iterations = 200;
-	scene.threshold = 0.001;
+	scene.iterations = 100;
+	scene.threshold = 0.01;
 	scene.time = iTime;
+	scene.steps = 0;
 
-	scene.light = normalize(vec3(1, 1, 1));
+	scene.light = normalize(vec3(1, 1, 1)) *0.1 ;
 
 	scene.spheres[0] = Sphere(vec3(1, 1, 1), vec3(1.0, 1.0, 1.0)*1.0, 1.35/4, 0.1, 0);
-	scene.spheres[1] = Sphere(vec3(1, vec2(1, 1) + rotate(vec2(0.2, 0), iTime * 0.3)), vec3(1.0, 1.0, 1.0)*1.0, 0.4, 0.1, 1);
+	scene.spheres[1] = Sphere(vec3(1, 1, 1.72), vec3(1.0, 1.0, 1.0)*1.0, 1.35/8, 0.1, 0);
 	scene.spheres[2] = Sphere(vec3(1, vec2(1, 1) + rotate(vec2(0.2, 0), iTime)), vec3(1.0, 1.0, 1.0)*1.0, 0.2, 0.1, 0);
 	scene.spheres[3] = Sphere(vec3(1, vec2(1, 1) - rotate(vec2(0.2, 0), iTime)), vec3(1.0, 1.0, 1.0)*1.0, 0.4, 0.1, 1);
-
-	scene.lights[0] = Light(vec3(1, 1, 1), vec3(1, 1, 1));
-	//scene.lights[1] = Light(vec3(1, 5, sin(iTime  *1.1)), vec3(1, 1, 1));
 
 	// Camera
     scene.cam.dir = camDir;
     scene.cam.pos = camPos;
 
 	vec3 ray = normalize(rotate(vec3(1, uv), scene.cam.dir));
-	col = rayMarch(scene, scene.cam.pos, ray) * 0.5;
+	col = vec3(0, 0, 0);
+	col += rayMarch(scene, scene.cam.pos, ray);
 
-	float refK = 0.2;
-	for(int i = 0; i < 1; i++){
-		
+	float refK = 1;
+	for (int i = 0; i < 3; i++) {
+		refK *= 0.9;
+
 		vec3 coll = collision(scene, scene.cam.pos, ray);
 		if(distance(coll, scene.cam.pos) > MAX_DIST)
 			break;
 		scene.cam.pos = coll;
 		vec3 n = scene.normal(scene.cam.pos);
 	
-		scene.cam.pos += n * 0.03;
+		scene.cam.pos += n * 0.05;
 		ray -= n*dot(n, ray)*2;
-		//scene.cam.pos += ray * 0.05;
-		col += rayMarch(scene, scene.cam.pos, ray) * refK;
+		scene.cam.pos += ray*0.01;
 
-		refK *= 0.1;
+		col += rayMarch(scene, scene.cam.pos, ray) * refK;	
 	}
-	
-	
 
+	//col = col - col * float(scene.steps) *0.9;
+	
 	// Output to screen
 	gl_FragColor = vec4(col.x, col.y, col.z, (iResolution.x*2.0 - iResolution.x*1.0 - iResolution.x*1.0)+ 1 + iTime);
 }
