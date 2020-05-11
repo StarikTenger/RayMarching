@@ -45,9 +45,10 @@ void Control::saveConfig() {
 void Control::step() {
 	int timeMs = getMilliCount();
 	if (timeMs - timePrev > dt) {
+		
+		std::cout << (1000.0 / (timeMs - timePrev)) << "\n";
 		timePrev = timeMs;
 
-		
 		events();
 		drawSys.mouse = mouse;
 		
@@ -77,6 +78,15 @@ void Control::step() {
 			drawSys.camPos.z -= lin;
 		if (keys[SPACE])
 			drawSys.camPos.z += lin;
+		if (keys[P]) {
+			drawSys.shader.setUniform("mode", 1);
+		}
+		else {
+			drawSys.shader.setUniform("mode", 0);
+		}
+		if (keys[O])
+			drawSys.shader.setUniform("tex", drawSys.tex);
+		
 	
 		drawSys.camPos.x = xy.x;
 		drawSys.camPos.y = xy.y;

@@ -27,6 +27,8 @@ public:
 	sf::Font font;
 
 	// SHADER!!!
+	sf::Texture textureSpr;
+	sf::Texture tex;
 	sf::Shader shader;
 	
 private:

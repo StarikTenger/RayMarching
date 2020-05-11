@@ -13,6 +13,9 @@ DrawSystem::DrawSystem(){
 	window = new sf::RenderWindow(sf::VideoMode(600, 600), "Long live the King!");
 	loadTextures();
 
+	textureSpr.loadFromFile("image.png");
+	tex.loadFromFile("sky2.jpg");
+	
 	shader.loadFromFile("shader.frag", sf::Shader::Fragment);
 }
 
@@ -34,20 +37,17 @@ void DrawSystem::drawScene() {
 
 	sf::Sprite spr;
 	spr.setPosition(0, 0);
-	sf::Texture textureSpr;
-	textureSpr.loadFromFile("image.png");
+	
 	spr.setTexture(textureSpr);
 
-	sf::Texture tex;
-	tex.loadFromFile("sky2.jpg");
+	
+	
 
 	shader.setUniform("iResolution", sf::Vector2f(w, h));
 	shader.setUniform("iTime", float(sys.time));
 	shader.setUniform("camPos", camPos);
 	shader.setUniform("camDir", camDir);
-	shader.setUniform("tex", tex);
-
-	std::cout << sys.time << "\n";
+	
 
 	window->draw(spr, &shader);
 	
