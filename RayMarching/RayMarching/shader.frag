@@ -8,7 +8,7 @@ uniform int mode;
 #define PI 3.141693
 #define INF 1000
 #define MAX_DIST 1000
-#define STEP 0.5
+#define STEP .4
 
 // Geometry
 
@@ -56,7 +56,7 @@ struct Scene {
 	// Parameters
 	int iterations;
 	float threshold;
-	float time;
+	float iTime;
 
 	// Info
 	int steps;
@@ -65,48 +65,37 @@ struct Scene {
 	vec3 light;
 
     Cam cam;
-	Sphere spheres[5];
-    //Light lights[1];
-
-	float distPlane(vec3 pos, vec3 p, vec3 d);
-	float distTorus(vec3 pos, vec3 p, vec3 d, vec3 r0, vec3 r1);
-	float distSphere(vec3 pos, vec3 p, float r);
-	float distSea(vec3 pos);
-	float distBiba(vec3 pos);
-	float distSpiral(vec3 pos);
-	float dist(vec3 pos);
-	vec3 normal(vec3 pos);
 };
 
-float Scene::distPlane(vec3 pos, vec3 p, vec3 d) {
+float distPlane(vec3 pos, vec3 p, vec3 d) {
 	d = normalize(d);
 	return length(pos - p)*dot(normalize(pos - p), d);
 }
 
-float Scene::distTorus(vec3 pos, vec3 p, vec3 d, vec3 r0, vec3 r1){
+float distTorus(vec3 pos, vec3 p, vec3 d, vec3 r0, vec3 r1){
 	float h = distPlane(pos, p, d);
 	float l = distance(pos, p);
 	float s = sqrt(l*l - h*h);
 	return sqrt((s-r0)*(s-r0) + h*h) - r1;
 }
 
-float Scene::distSphere(vec3 pos, vec3 p, float r) {
+float distSphere(vec3 pos, vec3 p, float r) {
 	float d = distance(pos, p) - r;
 	return d;
 }
 
-float Scene::distSea(vec3 pos){
-	return  pos.z - 1 + (sin(pos.x *  + time)*0.01
-	+ sin(pos.x * 5 + 5*time*1.11)*0.01/2
-	+ sin(pos.x * 10 + 5*time*2.11)*0.01/4
-	+ sin(pos.y *  + time*0.83)*0.01
-	+ sin(pos.y * 5 + 5*time*1.23)*0.01/2
-	+ sin(pos.y * 10 + 5*time*2.23)*0.01)
+float distSea(vec3 pos){
+	return  pos.z - 1 + (sin(pos.x * .1 + iTime)*0.01
+	+ sin(pos.x * 5 + 5*iTime*1.11)*0.01/2
+	+ sin(pos.x * 10 + 5*iTime*2.11)*0.01/4
+	+ sin(pos.y *  + iTime*0.83)*0.01
+	+ sin(pos.y * 5 + 5*iTime*1.23)*0.01/2
+	+ sin(pos.y * 10 + 5*iTime*2.23)*0.01)
 	*0.5
 	;
 }
 
-float Scene::distBiba(vec3 pos){
+float distBiba(vec3 pos){
 	pos.y += sin(pos.y * 50) * 0.01/3;
 
 	float dTor = distTorus(pos, vec3(0,0,0), vec3(1,0,0), 3, 0.5);
@@ -124,7 +113,7 @@ float Scene::distBiba(vec3 pos){
 	//return smin(smin(stick, dE, 0.1), dEnd, 0.2);
 }
 
-float Scene::distSpiral(vec3 pos) {
+float distSpiral(vec3 pos) {
 	float ang = atan2(pos.x, pos.y);
 	float st = 0.2 * 2;
 	float r = 0.1 * 2;
@@ -141,26 +130,39 @@ float Scene::distSpiral(vec3 pos) {
 	);
 }
 
-float Scene::dist(vec3 pos) {
-	vec3 p1 = pos;
-	//
-
-	p1.x = mod(p1.x, 4);
-	p1.y = mod(p1.y, 4);
-	p1.xy -= vec2(2, 2);
-
-	p1.y -= sin(p1.z*10) * 0.1;
-	p1.x -= sin(p1.z*10) * 0.1;
-
-	p1.xy = rotate(p1.xy, p1.z*0.5);
-
-	float a = max(p1.x - 1, -p1.x - 1);
-	float b = max(p1.y - 1, -p1.y - 1);
-
-	return max(max(-max(max(a, b), max(p1.z - 5, -p1.z - 5)), distSea(pos)), -pos.z - 4);
+float distGyroid(vec3 pos, vec3 shift, float scale, float r, float a, float b) {
+	pos -= shift;
+	pos *= scale / max(a, b);
+	return (dot(sin(pos * a), cos(pos.zxy * b)) - r) / scale ;
 }
 
-vec3 Scene::normal(vec3 pos) {
+float dist(vec3 pos) {
+	float sphere = distSphere(pos, vec3(0,0,0), 2);
+	float sphere1 = distSphere(pos, vec3(0,0,0), 1.8);
+	//pos.xy = rotate(pos.xy, iTime*0.3);
+	float a = max(pos.x - 1, -pos.x - 1);
+	float b = max(pos.y - 1, -pos.y - 1);
+	float box = max(max(a, b), max(pos.z - 1, -pos.z - 1));
+
+	//float g = distGyroid(pos, vec3(0, 0, 0), 7, -1.6, 1, 1);
+	//float g1 = distGyroid(pos, vec3(0, 0, 0), 7, -1.6 + sin(iTime + pos.x*5)*.1, 5, 6);
+	//float g2 = distGyroid(pos, vec3(0, 0, 0), 10, -1.6, 2, 3) * .4;
+	//float g3 = distGyroid(pos, vec3(0, 0, 0), 26, -1.6, 6, 7) * .4;
+	float g = 0;
+	float g1 = distGyroid(pos, vec3(0, 0, 0), 7, -1.9, 1, 1);
+	float g2 = distGyroid(pos, vec3(0, 0, 0), 15.3, -.9, 1, 1);
+	float g3 = distGyroid(pos, vec3(0, 0, 0), 29, -1.8, 1, 1);
+
+	g += g1;
+	g -= g2 * (0.6 + sin(iTime*0.2 + pos.x*0.1) * 0.1 );
+	g -= g3 * 0.2;
+
+	//g += g3 * 0.25;
+	//return max(smin(g - g2 + g3, g1, 0.02), -pos.x); 
+	return max(g, -g1);
+}
+
+vec3 normal(vec3 pos) {
 	float d = dist(pos);
     vec2 e = vec2(.01, 0);
     
@@ -172,6 +174,18 @@ vec3 Scene::normal(vec3 pos) {
     return normalize(n);
 }
 
+vec3 grad(vec3 pos) {
+	float d = dist(pos);
+    vec2 e = vec2(.01, 0);
+    
+    vec3 n = d - vec3(
+        dist(pos - e.xyy),
+        dist(pos - e.yxy),
+        dist(pos - e.yyx));
+    
+    return n / e.x;
+}
+
 // Ray marching
 
 vec3 collision(Scene scene, vec3 pos, vec3 dir){
@@ -181,7 +195,7 @@ vec3 collision(Scene scene, vec3 pos, vec3 dir){
 	for (int i = 0; i < scene.iterations; i++) {
 		
 
-		float d = scene.dist(pos);
+		float d = dist(pos);
 
 		if(d < minDist)
 			minDist = d;
@@ -207,13 +221,13 @@ vec3 rayMarch (Scene scene, vec3 pos, vec3 dir) {
 
 	float minDist = INF;
 	for (int i = 0; i < scene.iterations; i++) {
-		float d = scene.dist(pos);
+		float d = dist(pos);
 		if(d < minDist)
 			minDist = d;
 
 		if (d < scene.threshold){
 			//col = rotate(vec3(1, 0, 0), vec2(pos.x, pos.y));
-			col = vec3(0.8, 0, 0);
+			col = vec3(1, 1, 1);
 			break;
 		}
 		pos += dir * d * STEP;
@@ -223,10 +237,9 @@ vec3 rayMarch (Scene scene, vec3 pos, vec3 dir) {
 
 
 	if(minDist < scene.threshold){
-		col *= dot(scene.normal(pos), scene.light);
-		col.x = max(0, col.x);
-		col.y = max(0, col.y);
-		col.z = max(0, col.z);
+		col *= normal(pos) * .5 + .5;
+		//if(abs(distGyroid(pos, vec3(0, 0, 0), 40, -1.2, 1, 1)) < 0.01)
+		//	col = length(col.xy);
 	}
 	if(minDist > scene.threshold || distance(scene.cam.pos, pos) > MAX_DIST){
 		if(mode){
@@ -237,8 +250,9 @@ vec3 rayMarch (Scene scene, vec3 pos, vec3 dir) {
 		}
 	}
 	
+	float d =  distance(pos, camPos);
 
-	return col;
+	return col * min(1., 2. / d / d);
 }
 
 void main() {
@@ -247,32 +261,24 @@ void main() {
 
 	// Scene
 	Scene scene;
-	scene.iterations = 100;
-	scene.threshold = 0.01;
-	scene.time = iTime;
+	scene.iterations = 50;
+	scene.threshold = 0.07;
+	scene.iTime = iTime;
 	scene.steps = 0;
 
-	scene.light = normalize(vec3(-1, -2, 1)) * 0.5;
-
-	//scene.spheres[0] = Sphere(vec3(1, 1, 1), vec3(1.0, 1.0, 1.0)*1.0, 1.35/4, 0.1, 0);
-	//scene.spheres[1] = Sphere(vec3(1, 1, 1.72), vec3(1.0, 1.0, 1.0)*1.0, 1.35/8, 0.1, 0);
-	scene.spheres[0] = Sphere(vec3(-0.5, 2.4, 2), vec3(1., 1., 1.), 0.9, 0, 0);
-	scene.spheres[1] = Sphere(vec3(0.5, 2.4, 2), vec3(1., 1., 1.), 0.9, 0, 0);
-	scene.spheres[2] = Sphere(vec3(0, -1.4, 2.6 ), vec3(1., 1., 1.), 0.6, 0, 0);
+	scene.light = normalize(vec3(-1, -2, 1)) * 1.;
+	if(mode)
+		scene.light *= 0.5;
 
 	// Camera
     scene.cam.dir = camDir;
     scene.cam.pos = camPos;
 
-	vec3 ray = normalize(rotate(vec3(1, uv), scene.cam.dir));
+	vec3 ray = normalize(rotate(vec3(0.5, uv), scene.cam.dir));
 	col = vec3(0, 0, 0);
 	col += rayMarch(scene, scene.cam.pos, ray);
 
 	vec3 coll = collision(scene, scene.cam.pos, ray);
-//	if(distance(coll, scene.cam.pos) > MAX_DIST){
-//		gl_FragColor =  vec4(0, 0, 0, 1);
-//		return;
-//	}
 
 	float refK = 1;
 	for (int i = 0; i < 4*mode; i++) {
@@ -282,7 +288,7 @@ void main() {
 		if(distance(coll, scene.cam.pos) > MAX_DIST)
 			break;
 		scene.cam.pos = coll;
-		vec3 n = scene.normal(scene.cam.pos);
+		vec3 n = normal(scene.cam.pos);
 	
 		scene.cam.pos += n * 0.05;
 		ray -= n*dot(n, ray)*2;
@@ -294,5 +300,5 @@ void main() {
 	//col = col - col * float(scene.steps) *0.9;
 	
 	// Output to screen
-	gl_FragColor = vec4(col.x, col.y, col.z, (iResolution.x*2.0 - iResolution.x*1.0 - iResolution.x*1.0)+ 1 + iTime);
+	gl_FragColor = vec4(col.x, col.y, col.z, 1);
 }

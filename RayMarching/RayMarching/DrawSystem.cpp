@@ -44,7 +44,7 @@ void DrawSystem::drawScene() {
 	
 
 	shader.setUniform("iResolution", sf::Vector2f(w, h));
-	shader.setUniform("iTime", float(sys.time));
+	shader.setUniform("iTime", float(getMilliCount() / 1000.));
 	shader.setUniform("camPos", camPos);
 	shader.setUniform("camDir", camDir);
 	

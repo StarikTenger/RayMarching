@@ -21,7 +21,7 @@ Control::Control() {
 
 		}
 	}
-	
+
 	drawSys.cam.scale = 250;
 }
 
