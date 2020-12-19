@@ -9,7 +9,7 @@
 
 
 
-DrawSystem::DrawSystem(){
+DrawSystem::DrawSystem() {
 	window = new sf::RenderWindow(sf::VideoMode(600, 600), "Long live the King!");
 	loadTextures();
 
@@ -26,18 +26,9 @@ void DrawSystem::drawScene() {
 
 	w = window->getSize().x;
 	h = window->getSize().y;
-	/*
-	cam.border = { w, h };
-	sf::View view(sf::FloatRect(
-		sf::Vector2f(cam.pos.x - w * 1 / cam.scale / 2, cam.pos.y - h * 1 / cam.scale / 2),
-		sf::Vector2f(w * 1 / cam.scale, h * 1 / cam.scale)
-	));
-	view.setRotation(0);
-	window->setView(view);*/
 
 	sf::Sprite spr;
 	spr.setPosition(0, 0);
-	
 	spr.setTexture(textureSpr);
 
 	
@@ -47,6 +38,7 @@ void DrawSystem::drawScene() {
 	shader.setUniform("iTime", float(getMilliCount() / 1000.));
 	shader.setUniform("camPos", camPos);
 	shader.setUniform("camDir", camDir);
+	shader.setUniform("gravity", gravity);
 	
 
 	window->draw(spr, &shader);

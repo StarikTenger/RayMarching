@@ -64,7 +64,7 @@ void Control::step() {
 			sys.step();
 		}
 		
-		double lin = 0.1;
+		double lin = 0.04;
 		Vec2 xy = {drawSys.camPos.x, drawSys.camPos.y};
 		if (keys[W])
 			xy += geom::rotate({1, 0}, drawSys.camDir.x) * lin;
@@ -74,6 +74,12 @@ void Control::step() {
 			xy += geom::rotate({ 1, 0 }, drawSys.camDir.x - M_PI/2) * lin;
 		if (keys[D])
 			xy -= geom::rotate({ 1, 0 }, drawSys.camDir.x - M_PI / 2) * lin;
+
+		if (keys[Z])
+			drawSys.gravity -= 0.01;
+		if (keys[X])
+			drawSys.gravity += 0.01;
+
 		if (keys[SHIFT])
 			drawSys.camPos.z -= lin;
 		if (keys[SPACE])

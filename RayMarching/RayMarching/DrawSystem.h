@@ -20,6 +20,7 @@ public:
 
 	sf::Vector3f camPos = { 0, 0, 0 };
 	sf::Vector2f camDir = { 0, 0 };
+	float gravity = 0;
 
 	void draw();
 	void drawScene();
