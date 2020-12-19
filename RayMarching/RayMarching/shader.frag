@@ -10,7 +10,7 @@ uniform float gravity;
 #define INF 1000.
 #define MAX_DIST 10000.
 #define THRESHOLD 0.001
-#define ITERATIONS 160
+#define ITERATIONS 500
 #define STEP 1.
 
 vec3 light = vec3(0., 0., -1.);
@@ -143,19 +143,22 @@ vec3 grad(vec3 pos) {
 vec3 collision(vec3 pos, vec3 dir) {
 	dir = normalize(dir);
 
-	float minDist = INF;
-	for (int i = 0; i < ITERATIONS; i++) {	
-
+	for (int i = 0; i < ITERATIONS; i++) {
 		float d = dist(pos);
 
-		if(d < minDist)
-			minDist = d;
-		
-		if (d  < THRESHOLD){
+		if (d < THRESHOLD){
 			return pos;
+		}	
+		
+		float v = abs(dir.x) + abs(dir.y) + abs(dir.z);
+		float t = (-v + sqrt(pow(v, 2.) + 2. * gravity * d)) / gravity;
+		if (abs(gravity) < 1./INF) {
+			t = d / v;
 		}
-
-		pos += dir * d * STEP;
+		dir.z -= gravity * t;
+		pos += dir * t;
+		pos.z -= gravity * t * t / 2.;
+		
 	}
 
 	return vec3(INF, INF, INF);
@@ -163,17 +166,20 @@ vec3 collision(vec3 pos, vec3 dir) {
 
 
 float dist(vec3 pos) {
-	float koeff = .3;
-	pos.x = mod(pos.x, 2.0*koeff);
-	pos.y = mod(pos.y, 2.0*koeff);
-	pos.z = mod(pos.z, 2.0*koeff);
-	float box = -distBox(pos, vec3(-0.1*koeff, -0.1*koeff, -0.1*koeff), vec3(2.1*koeff, 2.1*koeff, 2.1*koeff), 0.5*koeff);
-	return box;
+	vec3 posPrev = pos;
+	vec3 koeff = vec3(0.9, 0.9, 0.9);
+	pos.x = mod(pos.x, 2.0*koeff.x);
+	pos.y = mod(pos.y, 2.0*koeff.y);
+	pos.z *= 0.7;
+	//pos.z = mod(pos.z, 2.0*koeff.z);
+	//float box = -distBox(pos, vec3(-0.1*koeff.x, -0.1*koeff.y, -0.1*koeff.z), vec3(2.1*koeff.x, 2.1*koeff.y, 2.1*koeff.z), 0.5*koeff.z);
+	float box = -distSphere(pos, vec3(1.*koeff.x, 1.*koeff.y, 1.*koeff.z), 1.4*koeff.x);
+	return min(box, posPrev.z-0.2);
 	//return distGyroid(pos, vec3(0.,0.,0.), 0.1, .0, 1., 1.);
 }
 
-vec3 rayMarch (vec3 pos, vec3 dir, int ignoreObjects) {
-	//gravity = 0.12;
+vec3 rayMarch (vec3 pos, vec3 dir) {
+	float gravity1 = gravity;
 	vec3 col = vec3(0.5, 0.5, 0.5);
 	//col *= 0;
 
@@ -192,6 +198,7 @@ vec3 rayMarch (vec3 pos, vec3 dir, int ignoreObjects) {
 			break;
 		}	
 		
+		float gravity = gravity1;// * pos.x * 0.1;
 		float v = abs(dir.x) + abs(dir.y) + abs(dir.z);
 		float t = (-v + sqrt(pow(v, 2.) + 2. * gravity * d)) / gravity;
 		if (abs(gravity) < 1./INF) {
@@ -201,7 +208,7 @@ vec3 rayMarch (vec3 pos, vec3 dir, int ignoreObjects) {
 		dir.z -= gravity * t;
 		pos += dir * t;
 		pos.z -= gravity * t * t / 2.;
-		k *= 0.969;
+		k *= 0.98;
 		//scene.steps += 1;
 		
 	}
@@ -209,7 +216,7 @@ vec3 rayMarch (vec3 pos, vec3 dir, int ignoreObjects) {
 
 	if(minDist < THRESHOLD) {
 		col *= 0.5 + pow(dot(normal(pos), light), 1.);
-		//col *= normal(pos) * .5 + .5;
+		col *= normal(pos) * .5 + .5;
 		//col = vec3(length(col.xy), 0., 0.);
 	}
 	
@@ -219,8 +226,9 @@ vec3 rayMarch (vec3 pos, vec3 dir, int ignoreObjects) {
 }
 
 void main() {
-	vec2 uv = gl_FragCoord/iResolution.yy - vec2(0.5, 0.5);   
+	vec2 uv = (gl_FragCoord/iResolution.xy - vec2(0.5, 0.5)) * normalize(iResolution.xy);   
 	vec3 col = vec3(0.,0.,0.); 
+	gravity *= 0.1;
 
 	// Scene
 
@@ -229,8 +237,32 @@ void main() {
 
 	vec3 ray = normalize(rotate(vec3(0.5, uv), camDir));
 	col = vec3(0, 0, 0);
-	col += rayMarch(camPos, ray, 0);
+	col += rayMarch(camPos, ray);
 	
+	// Reflections
+	vec3 coll = collision(camPos, ray);
+
+	float refK = 0.9;
+	vec3 camPos = camPos;
+	for (int i = 0; i < 2; i++) {
+		refK *= 0.5;
+
+		vec3 coll = collision(camPos, ray);
+		if(distance(coll, camPos) > MAX_DIST)
+			break;
+		camPos = coll;
+		vec3 n = normal(camPos);
+	
+		camPos += n * 0.05;
+		ray -= n*dot(n, ray)*2.;
+		camPos += ray*0.01;
+
+		col += rayMarch(camPos, ray) * refK;	
+	}
+
+	//col = col - col * float(scene.steps) *0.9;
+
+
 	// Output to screen
 	gl_FragColor = vec4(col.x, col.y, col.z, 1);
 }
